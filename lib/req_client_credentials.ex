@@ -40,7 +40,7 @@ defmodule ReqClientCredentials do
     |> Req.Request.merge_options(retry: &retry/2)
     |> Req.Request.put_private(:client_credentials_refreshed?, false)
     |> Req.Request.put_private(:client_credentials_retry?, false)
-    |> Req.Request.put_private(:client_credentials_skip?, false)
+    |> Req.Request.put_private(:orig_retry, Req.Request.get_option(req, :retry))
   end
 
   defp auth(request) do
@@ -108,13 +108,29 @@ defmodule ReqClientCredentials do
   end
 
   defp request_token!(request) do
+    req =
+      %{
+        request
+        | current_request_steps: Keyword.keys(request.request_steps) -- [:client_credentials],
+          request_steps: request.request_steps -- [client_credentials: &auth/1],
+          response_steps: request.response_steps -- [client_credentials: &check_response/1]
+      }
+
+    req =
+      if retry = Req.Request.get_private(req, :orig_retry) do
+        Req.merge(req, retry: retry)
+      else
+        Req.Request.delete_option(req, :retry)
+      end
+
     %{body: %{"access_token" => token, "token_type" => type}} =
-      request
-      |> Req.Request.put_private(:client_credentials_skip?, true)
-      |> Req.post!(
+      req
+      |> Req.Request.drop_options([:client_credentials_params, :client_credentials_url, :params])
+      |> Req.merge(
         form: Req.Request.get_private(request, :client_credentials_params),
         url: Req.Request.fetch_option!(request, :client_credentials_url)
       )
+      |> Req.post!()
 
     {token, type}
     |> tap(&write_cache(request, &1))
@@ -124,11 +140,10 @@ defmodule ReqClientCredentials do
     response.status == 401 and Req.Request.get_private(request, :client_credentials_retry?)
   end
 
-  defp retry(_request, _response_or_exception), do: true
+  defp retry(request, _response_or_exception), do: Req.Request.get_private(request, :orig_retry)
 
   defp skip?(request) do
-    Req.Request.get_private(request, :client_credentials_skip?) or
-      !Req.Request.get_option(request, :client_credentials_url)
+    !Req.Request.get_option(request, :client_credentials_url)
   end
 
   @doc false
