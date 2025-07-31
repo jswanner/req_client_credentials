@@ -46,9 +46,9 @@ defmodule ReqClientCredentials do
   defp auth(request) do
     with false <- skip?(request),
          params <- auth_params(request),
-         true <- auth_fetch_token?(request, params) do
+         true <- auth_fetch_token?(request, params),
+         {:ok, {token, type}} <- fetch_token(request) do
       request = Req.Request.put_private(request, :client_credentials_params, params)
-      {token, type} = fetch_token!(request)
       Req.Request.put_header(request, "authorization", type <> " " <> token)
     else
       _ -> request
@@ -84,31 +84,39 @@ defmodule ReqClientCredentials do
     if Req.Request.get_private(request, :client_credentials_refreshed?) do
       {Req.Request.put_private(request, :client_credentials_retry?, false), response}
     else
-      {token, type} = request_token!(request)
+      case request_token(request) do
+        {:ok, {token, type}} ->
+          request =
+            request
+            |> Req.Request.put_header("authorization", type <> " " <> token)
+            |> Req.Request.put_private(:client_credentials_refreshed?, true)
+            |> Req.Request.put_private(:client_credentials_retry?, true)
 
-      request =
-        request
-        |> Req.Request.put_header("authorization", type <> " " <> token)
-        |> Req.Request.put_private(:client_credentials_refreshed?, true)
-        |> Req.Request.put_private(:client_credentials_retry?, true)
+          {request, response}
 
-      {request, response}
+        _ ->
+          {request, response}
+      end
     end
   end
 
   defp check_response({request, response}), do: {request, response}
 
-  defp fetch_token!(request) do
-    read_cache(request) || request_token!(request)
-  end
-
   @doc false
-  def read_cache(request) do
-    :persistent_term.get({__MODULE__, request.url.host}, nil)
+  def fetch_cache(request) do
+    with data when is_tuple(data) <- :persistent_term.get({__MODULE__, request.url.host}, :error) do
+      {:ok, data}
+    end
   end
 
-  defp request_token!(request) do
-    req =
+  defp fetch_token(request) do
+    with :error <- fetch_cache(request) do
+      request_token(request)
+    end
+  end
+
+  defp request_token(request) do
+    auth_req =
       %{
         request
         | current_request_steps: Keyword.keys(request.request_steps) -- [:client_credentials],
@@ -116,24 +124,31 @@ defmodule ReqClientCredentials do
           response_steps: request.response_steps -- [client_credentials: &check_response/1]
       }
 
-    req =
-      if retry = Req.Request.get_private(req, :orig_retry) do
-        Req.merge(req, retry: retry)
+    auth_req =
+      if retry = Req.Request.get_private(auth_req, :orig_retry) do
+        Req.merge(auth_req, retry: retry)
       else
-        Req.Request.delete_option(req, :retry)
+        Req.Request.delete_option(auth_req, :retry)
       end
 
-    %{body: %{"access_token" => token, "token_type" => type}} =
-      req
-      |> Req.Request.drop_options([:client_credentials_params, :client_credentials_url, :params])
-      |> Req.merge(
-        form: Req.Request.get_private(request, :client_credentials_params),
-        url: Req.Request.fetch_option!(request, :client_credentials_url)
-      )
-      |> Req.post!()
-
-    {token, type}
-    |> tap(&write_cache(request, &1))
+    with {:ok, %{body: %{"access_token" => token, "token_type" => type}}} <-
+           auth_req
+           |> Req.Request.drop_options([
+             :client_credentials_params,
+             :client_credentials_url,
+             :params
+           ])
+           |> Req.merge(
+             form: Req.Request.get_private(request, :client_credentials_params),
+             url: Req.Request.fetch_option!(request, :client_credentials_url)
+           )
+           |> Req.post() do
+      data = {token, type}
+      write_cache(request, data)
+      {:ok, data}
+    else
+      _ -> :error
+    end
   end
 
   defp retry(request, %Req.Response{} = response) do

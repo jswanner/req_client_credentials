@@ -8,9 +8,15 @@ defmodule ReqClientCredentialsTest do
   setup context do
     test_origin = "https://test.host"
     token = Map.get(context, :token, "token_#{System.unique_integer()}")
-    token_origin = "https://token.host"
 
     plug = fn
+      %Conn{host: "bad-token.host"} = conn ->
+        send(self(), {:token_request, conn})
+
+        conn
+        |> Plug.Conn.put_status(401)
+        |> Req.Test.json(%{"error" => "access_denied", "error_description" => "Unauthorized"})
+
       %Conn{host: "token.host"} = conn ->
         send(self(), {:token_request, conn})
         Req.Test.json(conn, %{access_token: token, token_type: "Bearer"})
@@ -35,7 +41,7 @@ defmodule ReqClientCredentialsTest do
           client_id: "client_id",
           client_secret: "client_secret"
         ],
-        client_credentials_url: token_origin <> "/oauth/token",
+        client_credentials_url: "https://token.host/oauth/token",
         plug: plug,
         plugins: [ReqClientCredentials]
       )
@@ -56,7 +62,17 @@ defmodule ReqClientCredentialsTest do
     test "skips token request when audience does not match request host", context do
       assert {:ok, _resp} = Req.get(context.req, url: "https://other.host/path")
       refute_received {:token_request, _}
-      assert_received {:test_request, _}
+      assert_received {:test_request, conn}
+      assert [] = Conn.get_req_header(conn, "authorization")
+    end
+
+    test "sends original request without authorization token if token request fails", context do
+      assert {:ok, _resp} =
+               Req.get(context.req, client_credentials_url: "https://bad-token.host/oauth/token")
+
+      assert_receive {:token_request, _}
+      assert_received {:test_request, conn}
+      assert [] = Conn.get_req_header(conn, "authorization")
     end
   end
 
