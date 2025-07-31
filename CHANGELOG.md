@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.1.3 (2025-07-31)
+
+  * Fix inclusion of client credential params in access token request
+
 ## v0.1.2 (2025-07-30)
 
   * Improve handling of failed token requests.

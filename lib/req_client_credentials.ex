@@ -47,11 +47,12 @@ defmodule ReqClientCredentials do
     with false <- skip?(request),
          params <- auth_params(request),
          true <- auth_fetch_token?(request, params),
+         request <- Req.Request.put_private(request, :client_credentials_params, params),
          {:ok, {token, type}} <- fetch_token(request) do
-      request = Req.Request.put_private(request, :client_credentials_params, params)
       Req.Request.put_header(request, "authorization", type <> " " <> token)
     else
-      _ -> request
+      {_request, _response_or_exception} = result -> result
+      _other -> request
     end
   end
 
@@ -147,6 +148,7 @@ defmodule ReqClientCredentials do
       write_cache(request, data)
       {:ok, data}
     else
+      {:ok, %Req.Response{} = response} -> {request, response}
       _ -> :error
     end
   end

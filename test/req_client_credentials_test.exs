@@ -66,13 +66,12 @@ defmodule ReqClientCredentialsTest do
       assert [] = Conn.get_req_header(conn, "authorization")
     end
 
-    test "sends original request without authorization token if token request fails", context do
+    test "skips original request if token request fails", context do
       assert {:ok, _resp} =
                Req.get(context.req, client_credentials_url: "https://bad-token.host/oauth/token")
 
       assert_receive {:token_request, _}
-      assert_received {:test_request, conn}
-      assert [] = Conn.get_req_header(conn, "authorization")
+      refute_received {:test_request, _}
     end
   end
 
