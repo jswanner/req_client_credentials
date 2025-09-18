@@ -1,8 +1,12 @@
 # CHANGELOG
 
+## v0.1.4 (2025-09-17)
+
+  * Fix incorrect content-type in token request by building new request.
+
 ## v0.1.3 (2025-07-31)
 
-  * Fix inclusion of client credential params in access token request
+  * Fix inclusion of client credential params in access token request.
 
 ## v0.1.2 (2025-07-30)
 

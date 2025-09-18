@@ -117,33 +117,35 @@ defmodule ReqClientCredentials do
   end
 
   defp request_token(request) do
-    auth_req =
-      %{
-        request
-        | current_request_steps: Keyword.keys(request.request_steps) -- [:client_credentials],
-          request_steps: request.request_steps -- [client_credentials: &auth/1],
-          response_steps: request.response_steps -- [client_credentials: &check_response/1]
-      }
+    options =
+      Map.drop(request.options, [
+        :body,
+        :client_credentials_params,
+        :client_credentials_url,
+        :form,
+        :json
+      ])
 
     auth_req =
-      if retry = Req.Request.get_private(auth_req, :orig_retry) do
-        Req.merge(auth_req, retry: retry)
-      else
-        Req.Request.delete_option(auth_req, :retry)
+      Req.Request.new(url: Req.Request.fetch_option!(request, :client_credentials_url))
+      |> Req.Request.append_request_steps(
+        Keyword.drop(request.request_steps, [:client_credentials])
+      )
+      |> Req.Request.append_response_steps(
+        Keyword.drop(request.response_steps, [:client_credentials])
+      )
+      |> Req.Request.append_error_steps(request.error_steps)
+      |> Req.Request.register_options(Enum.to_list(request.registered_options))
+      |> Req.Request.merge_options(Map.to_list(options))
+
+    auth_req =
+      case Req.Request.get_private(auth_req, :orig_retry) do
+        nil -> auth_req
+        retry -> Req.Request.merge_options(auth_req, retry: retry)
       end
 
     with {:ok, %{body: %{"access_token" => token, "token_type" => type}}} <-
-           auth_req
-           |> Req.Request.drop_options([
-             :client_credentials_params,
-             :client_credentials_url,
-             :params
-           ])
-           |> Req.merge(
-             form: Req.Request.get_private(request, :client_credentials_params),
-             url: Req.Request.fetch_option!(request, :client_credentials_url)
-           )
-           |> Req.post() do
+           Req.post(auth_req, form: Req.Request.get_private(request, :client_credentials_params)) do
       data = {token, type}
       write_cache(request, data)
       {:ok, data}
