@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.1.5 (2025-10-10)
+
+  * Include client credentials URL & params in cache key.
+  * Remove checking of URI scheme when determining whether to run.
+
 ## v0.1.4 (2025-09-17)
 
   * Fix incorrect content-type in token request by building new request.

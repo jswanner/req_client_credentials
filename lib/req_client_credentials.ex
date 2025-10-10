@@ -4,8 +4,8 @@ defmodule ReqClientCredentials do
   access token will be cached and reused for subsequent requests, if the
   response to the `:url` returns a 401 response then this plugin will refresh
   the access token (only refreshes one time). If an `:audience` is included in
-  `:client_credentials_params` then this plugin will only run if the schema,
-  host, and port of the `:url` match that of the `:audience`.
+  `:client_credentials_params` then this plugin will only run if the host and port
+  of the `:url` match that of the `:audience`.
 
   [rfc]: https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
   """
@@ -63,9 +63,7 @@ defmodule ReqClientCredentials do
 
       audience ->
         uri = URI.new!(audience)
-
-        uri.scheme == request.url.scheme and uri.host == request.url.host and
-          uri.port == request.url.port
+        uri.host == request.url.host and uri.port == request.url.port
     end
   end
 
