@@ -111,6 +111,17 @@ defmodule ReqClientCredentialsTest do
       assert {:ok, _resp} = Req.get(req, url: "https://other.host/path")
       assert_received {:token_request, _}
       assert_received {:test_request, _}
+
+      assert {:ok, _resp} =
+               Req.get(req,
+                 client_credentials_params: [
+                   client_id: "other_id",
+                   client_secret: "client_secret"
+                 ]
+               )
+
+      assert_received {:token_request, _}
+      assert_received {:test_request, _}
     end
 
     @tag capture_log: true, token: "unauthorized"

@@ -78,7 +78,16 @@ defmodule ReqClientCredentials do
 
   @doc false
   def bust_cache(request) do
-    :persistent_term.erase({__MODULE__, request.url.host})
+    :persistent_term.erase(cache_key(request))
+  end
+
+  defp cache_key(request) do
+    {
+      __MODULE__,
+      request.url.host,
+      Req.Request.fetch_option!(request, :client_credentials_url),
+      Req.Request.get_private(request, :client_credentials_params) || auth_params(request)
+    }
   end
 
   defp check_response({request, response}) when response.status == 401 do
@@ -105,7 +114,7 @@ defmodule ReqClientCredentials do
 
   @doc false
   def fetch_cache(request) do
-    with data when is_tuple(data) <- :persistent_term.get({__MODULE__, request.url.host}, :error) do
+    with data when is_tuple(data) <- :persistent_term.get(cache_key(request), :error) do
       {:ok, data}
     end
   end
@@ -167,6 +176,6 @@ defmodule ReqClientCredentials do
 
   @doc false
   def write_cache(request, data) do
-    :persistent_term.put({__MODULE__, request.url.host}, data)
+    :persistent_term.put(cache_key(request), data)
   end
 end
