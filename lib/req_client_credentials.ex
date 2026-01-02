@@ -32,7 +32,8 @@ defmodule ReqClientCredentials do
     req
     |> Req.Request.register_options([
       :client_credentials_params,
-      :client_credentials_url
+      :client_credentials_url,
+      :client_credentials_auth_mode,
     ])
     |> Req.Request.merge_options(opts)
     |> Req.Request.append_request_steps(client_credentials: &auth/1)
@@ -133,6 +134,8 @@ defmodule ReqClientCredentials do
         :json
       ])
 
+    auth_mode = request.options[:client_credentials_auth_mode] || :form
+
     auth_req =
       Req.Request.new(url: Req.Request.fetch_option!(request, :client_credentials_url))
       |> Req.Request.append_request_steps(
@@ -152,7 +155,7 @@ defmodule ReqClientCredentials do
       end
 
     with {:ok, %{body: %{"access_token" => token, "token_type" => type}}} <-
-           Req.post(auth_req, form: Req.Request.get_private(request, :client_credentials_params)) do
+           Req.post(auth_req, auth_request_body(request, auth_mode)) do
       data = {token, type}
       write_cache(request, data)
       {:ok, data}
@@ -176,4 +179,11 @@ defmodule ReqClientCredentials do
   def write_cache(request, data) do
     :persistent_term.put(cache_key(request), data)
   end
+
+  defp auth_request_body(request, :basic) do
+    params = Req.Request.get_private(request, :client_credentials_params)
+    {auth, form} = Keyword.split(params, ~w(client_id client_secret)a)
+    [form: form, auth: {:basic, "#{auth[:client_id]}:#{auth[:client_secret]}"}]
+  end
+  defp auth_request_body(request, _), do: [form: Req.Request.get_private(request, :client_credentials_params)]
 end
