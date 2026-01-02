@@ -34,6 +34,7 @@ defmodule ReqClientCredentials do
       :client_credentials_params,
       :client_credentials_url,
       :client_credentials_auth_mode,
+      :client_credentials_token_type
     ])
     |> Req.Request.merge_options(opts)
     |> Req.Request.append_request_steps(client_credentials: &auth/1)
@@ -135,6 +136,7 @@ defmodule ReqClientCredentials do
       ])
 
     auth_mode = request.options[:client_credentials_auth_mode] || :form
+    token_type = request.options[:client_credentials_token_type]
 
     auth_req =
       Req.Request.new(url: Req.Request.fetch_option!(request, :client_credentials_url))
@@ -156,7 +158,7 @@ defmodule ReqClientCredentials do
 
     with {:ok, %{body: %{"access_token" => token, "token_type" => type}}} <-
            Req.post(auth_req, auth_request_body(request, auth_mode)) do
-      data = {token, type}
+      data = {token, token_type || type}
       write_cache(request, data)
       {:ok, data}
     else
