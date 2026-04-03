@@ -10,6 +10,10 @@ defmodule ReqClientCredentials.MixProject do
     ]
   end
 
+  def cli do
+    [preferred_envs: [docs: :docs, "hex.publish": :docs]]
+  end
+
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false, warn_if_outdated: true},
@@ -35,10 +39,6 @@ defmodule ReqClientCredentials.MixProject do
         links: %{
           "GitHub" => @source_url
         }
-      ],
-      preferred_cli_env: [
-        docs: :docs,
-        "hex.publish": :docs
       ],
       source_url: @source_url,
       start_permanent: Mix.env() == :prod,
