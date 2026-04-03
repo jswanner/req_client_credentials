@@ -5,11 +5,17 @@ defmodule ReqClientCredentialsTest do
 
   doctest ReqClientCredentials
 
+  @moduletag audience: "https://test.host",
+             client_credentials_url: "https://bearer-token.host/oauth/token"
+
   setup context do
-    test_origin = "https://test.host"
     token = Map.get(context, :token, "token_#{System.unique_integer()}")
 
     plug = fn
+      %Conn{host: "application-token.host"} = conn ->
+        send(self(), {:token_request, conn})
+        Req.Test.json(conn, %{access_token: token, token_type: "Application Access Token"})
+
       %Conn{host: "bad-token.host"} = conn ->
         send(self(), {:token_request, conn})
 
@@ -17,7 +23,7 @@ defmodule ReqClientCredentialsTest do
         |> Plug.Conn.put_status(401)
         |> Req.Test.json(%{"error" => "access_denied", "error_description" => "Unauthorized"})
 
-      %Conn{host: "token.host"} = conn ->
+      %Conn{host: "bearer-token.host"} = conn ->
         send(self(), {:token_request, conn})
         Req.Test.json(conn, %{access_token: token, token_type: "Bearer"})
 
@@ -35,13 +41,15 @@ defmodule ReqClientCredentialsTest do
 
     req =
       Req.new(
-        url: test_origin <> "/path",
-        client_credentials_params: [
-          audience: test_origin,
-          client_id: "client_id",
-          client_secret: "client_secret"
+        url: context.audience <> "/path",
+        client_credentials: [
+          form: [
+            audience: context.audience,
+            client_id: "client_id",
+            client_secret: "client_secret"
+          ],
+          url: context.client_credentials_url
         ],
-        client_credentials_url: "https://token.host/oauth/token",
         plug: plug,
         plugins: [ReqClientCredentials]
       )
@@ -66,24 +74,37 @@ defmodule ReqClientCredentialsTest do
       assert [] = Conn.get_req_header(conn, "authorization")
     end
 
+    @tag client_credentials_url: "https://bad-token.host/oauth/token"
     test "skips original request if token request fails", context do
-      assert {:ok, _resp} =
-               Req.get(context.req, client_credentials_url: "https://bad-token.host/oauth/token")
-
+      assert {:ok, _resp} = Req.get(context.req)
       assert_receive {:token_request, _}
       refute_received {:test_request, _}
     end
   end
 
-  describe "without client_credentials_url option" do
+  describe "without client_credentials url option" do
     test "skips token request", context do
-      assert {:ok, _resp} =
-               context.req
-               |> Req.Request.delete_option(:client_credentials_url)
-               |> Req.get()
+      assert {:ok, _resp} = Req.get(context.req, client_credentials: [])
 
       refute_received {:token_request, _}
       assert_received {:test_request, _}
+    end
+  end
+
+  describe "using basic auth for token request" do
+    test "sends configured userinfo", context do
+      assert {:ok, _resp} =
+               Req.get(context.req,
+                 client_credentials: [
+                   auth: {:basic, "user:pass"},
+                   url: context.client_credentials_url
+                 ]
+               )
+
+      assert_received {:token_request, conn}
+      assert ["Basic #{Base.encode64("user:pass")}"] == Conn.get_req_header(conn, "authorization")
+      assert_received {:test_request, conn}
+      assert ["Bearer #{context.token}"] == Conn.get_req_header(conn, "authorization")
     end
   end
 
@@ -101,7 +122,10 @@ defmodule ReqClientCredentialsTest do
     test "request token on cache miss", context do
       req =
         Req.Request.merge_options(context.req,
-          client_credentials_params: [client_id: "client_id", client_secret: "client_secret"]
+          client_credentials: [
+            form: [client_id: "client_id", client_secret: "client_secret"],
+            url: context.client_credentials_url
+          ]
         )
 
       assert {:ok, _resp} = Req.get(req)
@@ -114,9 +138,9 @@ defmodule ReqClientCredentialsTest do
 
       assert {:ok, _resp} =
                Req.get(req,
-                 client_credentials_params: [
-                   client_id: "other_id",
-                   client_secret: "client_secret"
+                 client_credentials: [
+                   form: [client_id: "other_id", client_secret: "client_secret"],
+                   url: context.client_credentials_url
                  ]
                )
 
@@ -126,7 +150,7 @@ defmodule ReqClientCredentialsTest do
 
     @tag capture_log: true, token: "unauthorized"
     test "refreshes token once on unauthorized response", context do
-      ReqClientCredentials.write_cache(context.req, {context.token, "Bearer"})
+      ReqClientCredentials.write_cache(context.req, context.token)
 
       assert {:ok, _resp} = Req.get(context.req)
       assert_received {:unauthorized_request, _}

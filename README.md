@@ -1,26 +1,31 @@
 # ReqClientCredentials
 
-`Req` plugin for [OAuth 2.0 client credentials flow][rfc] authentication. The
-access token will be cached and reused for subsequent requests, if the
-response to the `:url` returns a 401 response then this plugin will refresh
-the access token (only refreshes one time). If an `:audience` is included in
-`:client_credentials_params` then this plugin will only run if the schema,
-host, and port of the `:url` match that of the `:audience`.
+`Req` plugin for [OAuth 2.0 client credentials flow][rfc] authentication. This
+plugin accepts all the options of `Req` itself under the `:client_credentials`
+key. The access token will be cached and reused for subsequent requests, if
+the response to the authenticated `:url` returns a 401 response then this
+plugin will refresh the access token (only refreshes one time). If an
+`:audience` is included in `:form` or `:json` option for `:client_credentials`
+then this plugin will only run if the host and port of the authenticated
+`:url` match that of the `:audience`. The `:url` option within
+`:client_credentials` is the URL this plugin will make a POST request to for
+creating a bearer token.
 
 ## Usage
 
 ```elixir
-req =
-  Req.new(
-    client_credentials_params: [
+Req.new(url: "https://api.example.com/path")
+|> ReqClientCredentials.attach()
+|> Req.get!(
+  client_credentials: [
+    form: [
       audience: "https://api.example.com",
       client_id: System.get_env("EXAMPLE_CLIENT_ID"),
       client_secret: System.get_env("EXAMPLE_CLIENT_SECRET")
     ],
-    client_credentials_url: "https://auth.example.com/oauth/token",
-  )
-  |> ReqClientCredentials.attach()
-Req.get!(req, url: "https://api.example.com/path")
+    url: "https://auth.example.com/oauth/token",
+  ]
+)
 #=> %Req.Response{}
 ```
 

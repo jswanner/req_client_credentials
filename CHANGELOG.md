@@ -1,5 +1,67 @@
 # CHANGELOG
 
+## v0.2.0 (2026-04-06)
+
+Overhaul of options for `ReqClientCredentials`, it now accepts all options `Req`
+supports under the `:client_credentials` key. This is a **breaking change** as
+the previous `:client_credentials_params` and `:client_credentials_url` are no
+longer supported.
+
+Where you previously configured ReqClientCredentials along the lines of:
+
+```elixir
+Req.new(url: "https://api.example.com/path")
+|> ReqClientCredentials.attach()
+|> Req.get!(
+  client_credentials_params: [
+    client_id: System.get_env("EXAMPLE_CLIENT_ID"),
+    client_secret: System.get_env("EXAMPLE_CLIENT_SECRET")
+  ],
+  client_credentials_url: "https://auth.example.com/oauth/token"
+)
+```
+
+That will now need to be done as:
+
+```elixir
+Req.new(url: "https://api.example.com/path")
+|> ReqClientCredentials.attach()
+|> Req.get!(
+  client_credentials: [
+    form: [
+      client_id: System.get_env("EXAMPLE_CLIENT_ID"),
+      client_secret: System.get_env("EXAMPLE_CLIENT_SECRET")
+    ],
+    url: "https://auth.example.com/oauth/token",
+  ]
+)
+```
+
+Note the use of `:form` to specify the body of the POST request to the
+authorization server. Also, `grant_type: "client_credentials"` will continue to
+be automatically injected into the body of the request, as long as `:form` or
+`:json` are given within the `:client_credentials` option.
+
+This change was made in order to make ReqClientCredentials more flexible with
+how it makes the request for the access token. For instance, if your
+authorization server uses basic auth, you can use Req's `:auth` option for that:
+
+```elixir
+Req.new(url: "https://api.example.com/path")
+|> ReqClientCredentials.attach()
+|> Req.get!(
+  client_credentials: [
+    auth: {:basic, "username:password" },
+    form: [scope: "..."],
+    url: "https://auth.example.com/oauth/token",
+  ]
+)
+```
+
+  * **(BREAKING CHANGE)** Drops `:client_credentials_params` and
+  `:client_credentials_url` options in favor of any option Req supports under
+  the `:client_credentials` key.
+
 ## v0.1.5 (2025-10-10)
 
   * Include client credentials URL & params in cache key.
