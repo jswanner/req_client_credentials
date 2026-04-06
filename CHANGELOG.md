@@ -1,8 +1,12 @@
 # CHANGELOG
 
+## v0.2.2 (2026-04-06)
+
+  * Fix ignore responses of requests that were ignored
+
 ## v0.2.1 (2026-04-06)
 
-  * Ensure request URL is fully resolved
+  * Fix fully resolve request URL before comparison with audience
 
 ## v0.2.0 (2026-04-06)
 

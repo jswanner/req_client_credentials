@@ -14,6 +14,10 @@ defmodule ReqClientCredentials do
   [rfc]: https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
   """
 
+  defguardp is_applicable_request(request)
+            when is_tuple(request.private.client_credentials_data) and
+                   tuple_size(request.private.client_credentials_data) == 3
+
   @doc """
   Runs the plugin.
 
@@ -48,40 +52,13 @@ defmodule ReqClientCredentials do
   defp auth(request) do
     options = Req.Request.get_option(request, :client_credentials, [])
 
-    with false <- skip?(options),
-         {encoding, params} <- auth_params(options),
-         true <- auth_fetch_token?(request, params),
-         request <-
-           Req.Request.put_private(request, :client_credentials_data, {options, encoding, params}),
+    with {:ok, request} <- validate(request, options),
          {:ok, token} <- fetch_token(request) do
       Req.Request.merge_options(request, auth: {:bearer, token})
     else
       {_request, _response_or_exception} = result -> result
       _other -> request
     end
-  end
-
-  defp auth_fetch_token?(request, params) do
-    case get_in(params, [:audience]) do
-      nil ->
-        true
-
-      audience ->
-        request = Req.Steps.put_base_url(request)
-        uri = URI.new!(audience)
-        uri.host == request.url.host and uri.port == request.url.port
-    end
-  end
-
-  defp auth_params(options) do
-    {encoding, params} =
-      cond do
-        Keyword.has_key?(options, :form) -> {:form, options[:form]}
-        Keyword.has_key?(options, :json) -> {:json, options[:json]}
-        true -> {nil, []}
-      end
-
-    {encoding, put_in(params, [:grant_type], "client_credentials")}
   end
 
   @doc false
@@ -97,7 +74,8 @@ defmodule ReqClientCredentials do
     }
   end
 
-  defp check_response({request, response}) when response.status == 401 do
+  defp check_response({request, response})
+       when is_applicable_request(request) and response.status == 401 do
     if Req.Request.get_private(request, :client_credentials_refreshed?) do
       {Req.Request.put_private(request, :client_credentials_retry?, false), response}
     else
@@ -177,8 +155,45 @@ defmodule ReqClientCredentials do
     end
   end
 
-  defp skip?(options) do
-    !get_in(options, [:url])
+  defp validate(request, options) do
+    with :ok <- validate_url(options),
+         {:ok, {encoding, params}} <- validate_params(options),
+         :ok <- validate_audience(request, params) do
+      {:ok,
+       Req.Request.put_private(request, :client_credentials_data, {options, encoding, params})}
+    else
+      _ -> :error
+    end
+  end
+
+  defp validate_audience(request, params) do
+    case get_in(params, [:audience]) do
+      nil ->
+        :ok
+
+      audience ->
+        request = Req.Steps.put_base_url(request)
+        uri = URI.new!(audience)
+        if uri.host == request.url.host and uri.port == request.url.port, do: :ok, else: :error
+    end
+  end
+
+  defp validate_params(options) do
+    {encoding, params} =
+      cond do
+        Keyword.has_key?(options, :form) -> {:form, options[:form]}
+        Keyword.has_key?(options, :json) -> {:json, options[:json]}
+        true -> {nil, []}
+      end
+
+    {:ok, {encoding, put_in(params, [:grant_type], "client_credentials")}}
+  end
+
+  defp validate_url(options) do
+    case get_in(options, [:url]) do
+      url when is_binary(url) -> :ok
+      _ -> :error
+    end
   end
 
   @doc false
