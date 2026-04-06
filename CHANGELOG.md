@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.2.1 (2026-04-06)
+
+  * Ensure request URL is fully resolved
+
 ## v0.2.0 (2026-04-06)
 
 Overhaul of options for `ReqClientCredentials`, it now accepts all options `Req`

@@ -67,6 +67,7 @@ defmodule ReqClientCredentials do
         true
 
       audience ->
+        request = Req.Steps.put_base_url(request)
         uri = URI.new!(audience)
         uri.host == request.url.host and uri.port == request.url.port
     end
