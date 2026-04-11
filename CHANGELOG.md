@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.2.3 (2026-04-11)
+
+  * Fix cache key element when `:base_url` is used
+  * Reruns request directly instead of using Req's retry step
+
 ## v0.2.2 (2026-04-06)
 
   * Fix ignore responses of requests that were ignored

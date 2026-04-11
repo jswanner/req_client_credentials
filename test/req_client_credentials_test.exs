@@ -41,7 +41,8 @@ defmodule ReqClientCredentialsTest do
 
     req =
       Req.new(
-        url: context.audience <> "/path",
+        base_url: context.audience,
+        url: "/path",
         client_credentials: [
           form: [
             audience: context.audience,
@@ -161,12 +162,14 @@ defmodule ReqClientCredentialsTest do
 
     @tag capture_log: true, response_status: :unauthorized
     test "refreshes token once on unauthorized response", context do
-      ReqClientCredentials.write_cache(context.req, context.token)
+      ReqClientCredentials.write_cache(context.req, "bad-token")
 
       assert {:ok, _resp} = Req.get(context.req)
-      assert_received {:unauthorized_request, _}
+      assert_received {:unauthorized_request, conn}
+      assert ["Bearer bad-token"] = Conn.get_req_header(conn, "authorization")
       assert_received {:token_request, _}
-      assert_received {:unauthorized_request, _}
+      assert_received {:unauthorized_request, conn}
+      assert ["Bearer #{context.token}"] == Conn.get_req_header(conn, "authorization")
       assert {:messages, []} = Process.info(self(), :messages)
     end
   end

@@ -14,7 +14,7 @@ defmodule ReqClientCredentials do
   [rfc]: https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
   """
 
-  defguardp is_applicable_request(request)
+  defguardp validated_request?(request)
             when is_tuple(request.private.client_credentials_data) and
                    tuple_size(request.private.client_credentials_data) == 3
 
@@ -41,12 +41,8 @@ defmodule ReqClientCredentials do
     req
     |> Req.Request.register_options([:client_credentials])
     |> Req.Request.merge_options(opts)
-    |> Req.Request.prepend_request_steps(client_credentials: &auth/1)
+    |> Req.Request.append_request_steps(client_credentials: &auth/1)
     |> Req.Request.prepend_response_steps(client_credentials: &check_response/1)
-    |> Req.Request.merge_options(retry: &retry/2)
-    |> Req.Request.put_private(:client_credentials_old_retry, Req.Request.get_option(req, :retry))
-    |> Req.Request.put_private(:client_credentials_refreshed?, false)
-    |> Req.Request.put_private(:client_credentials_retry?, false)
   end
 
   defp auth(request) do
@@ -54,7 +50,9 @@ defmodule ReqClientCredentials do
 
     with {:ok, request} <- validate(request, options),
          {:ok, token} <- fetch_token(request) do
-      Req.Request.merge_options(request, auth: {:bearer, token})
+      request
+      |> Req.Request.put_header("authorization", "Bearer " <> token)
+      |> Req.Request.put_private(:client_credentials_refreshed?, false)
     else
       {_request, _response_or_exception} = result -> result
       _other -> request
@@ -67,6 +65,8 @@ defmodule ReqClientCredentials do
   end
 
   defp cache_key(request) do
+    request = Req.Steps.put_base_url(request)
+
     {
       __MODULE__,
       request.url.host,
@@ -75,19 +75,16 @@ defmodule ReqClientCredentials do
   end
 
   defp check_response({request, response})
-       when is_applicable_request(request) and response.status == 401 do
+       when validated_request?(request) and response.status == 401 do
     if Req.Request.get_private(request, :client_credentials_refreshed?) do
-      {Req.Request.put_private(request, :client_credentials_retry?, false), response}
+      {request, response}
     else
       case request_token(request) do
         {:ok, token} ->
-          request =
-            request
-            |> Req.Request.put_header("authorization", "Bearer " <> token)
-            |> Req.Request.put_private(:client_credentials_refreshed?, true)
-            |> Req.Request.put_private(:client_credentials_retry?, true)
-
-          {request, response}
+          %{request | halted: false}
+          |> Req.Request.put_header("authorization", "Bearer " <> token)
+          |> Req.Request.put_private(:client_credentials_refreshed?, true)
+          |> Req.Request.run_request()
 
         _ ->
           {request, response}
@@ -112,12 +109,7 @@ defmodule ReqClientCredentials do
 
   defp request_token(request) do
     {options, encoding, params} = Req.Request.get_private(request, :client_credentials_data)
-    options = if encoding, do: Keyword.put(options, encoding, params), else: options
-
-    options =
-      if retry = Req.Request.get_private(request, :client_credentials_old_retry),
-        do: Keyword.put(options, :retry, retry),
-        else: options
+    options = if encoding, do: put_in(options[encoding], params), else: options
 
     auth_req =
       Req.Request.new()
@@ -144,17 +136,6 @@ defmodule ReqClientCredentials do
     end
   end
 
-  defp retry(request, %Req.Response{} = response) when response.status == 401 do
-    Req.Request.get_private(request, :client_credentials_retry?)
-  end
-
-  defp retry(request, response_or_exception) do
-    case Req.Request.get_private(request, :client_credentials_old_retry) do
-      fun when is_function(fun, 2) -> fun.(request, response_or_exception)
-      other -> other
-    end
-  end
-
   defp validate(request, options) do
     with :ok <- validate_url(options),
          {:ok, {encoding, params}} <- validate_params(options),
@@ -172,7 +153,6 @@ defmodule ReqClientCredentials do
         :ok
 
       audience ->
-        request = Req.Steps.put_base_url(request)
         uri = URI.new!(audience)
         if uri.host == request.url.host and uri.port == request.url.port, do: :ok, else: :error
     end
