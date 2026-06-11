@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.2.4 (2026-06-11)
+
+  * Allows other grant type to be specified by the caller, grant type of
+  `client_credentials` will be injected if missing in `:form` or `:json` options
+
 ## v0.2.3 (2026-04-11)
 
   * Fix cache key element when `:base_url` is used

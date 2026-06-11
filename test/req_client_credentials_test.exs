@@ -120,6 +120,23 @@ defmodule ReqClientCredentialsTest do
     end
   end
 
+  describe "using different grant_type for token request" do
+    test "sends given grant_type", context do
+      assert {:ok, _resp} =
+               Req.get(context.req,
+                 client_credentials: [
+                   form: [grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer"],
+                   url: context.client_credentials_url
+                 ]
+               )
+
+      assert_received {:token_request, conn}
+      assert %{"grant_type" => "urn:ietf:params:oauth:grant-type:jwt-bearer"} = conn.body_params
+      assert_received {:test_request, conn}
+      assert ["Bearer #{context.token}"] == Conn.get_req_header(conn, "authorization")
+    end
+  end
+
   describe "caching" do
     test "uses cached token on cache hit", context do
       assert {:ok, _resp} = Req.get(context.req)

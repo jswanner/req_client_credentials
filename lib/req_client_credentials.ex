@@ -15,8 +15,7 @@ defmodule ReqClientCredentials do
   """
 
   defguardp validated_request?(request)
-            when is_tuple(request.private.client_credentials_data) and
-                   tuple_size(request.private.client_credentials_data) == 3
+            when is_map_key(request.private, :client_credentials_options)
 
   @doc """
   Runs the plugin.
@@ -108,9 +107,6 @@ defmodule ReqClientCredentials do
   end
 
   defp request_token(request) do
-    {options, encoding, params} = Req.Request.get_private(request, :client_credentials_data)
-    options = if encoding, do: put_in(options[encoding], params), else: options
-
     auth_req =
       Req.Request.new()
       |> Req.Request.append_request_steps(
@@ -127,6 +123,8 @@ defmodule ReqClientCredentials do
         |> Map.to_list()
       )
 
+    options = Req.Request.get_private(request, :client_credentials_options)
+
     with {:ok, %{body: %{"access_token" => token}}} <- Req.post(auth_req, options) do
       write_cache(request, token)
       {:ok, token}
@@ -140,8 +138,8 @@ defmodule ReqClientCredentials do
     with :ok <- validate_url(options),
          {:ok, {encoding, params}} <- validate_params(options),
          :ok <- validate_audience(request, params) do
-      {:ok,
-       Req.Request.put_private(request, :client_credentials_data, {options, encoding, params})}
+      options = if encoding, do: put_in(options[encoding], params), else: options
+      {:ok, Req.Request.put_private(request, :client_credentials_options, options)}
     else
       _ -> :error
     end
@@ -166,7 +164,7 @@ defmodule ReqClientCredentials do
         true -> {nil, []}
       end
 
-    {:ok, {encoding, put_in(params, [:grant_type], "client_credentials")}}
+    {:ok, {encoding, update_in(params, [:grant_type], &(&1 || "client_credentials"))}}
   end
 
   defp validate_url(options) do

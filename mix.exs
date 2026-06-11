@@ -2,7 +2,7 @@ defmodule ReqClientCredentials.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/jswanner/req_client_credentials"
-  @version "0.2.3"
+  @version "0.2.4"
 
   def application do
     [
