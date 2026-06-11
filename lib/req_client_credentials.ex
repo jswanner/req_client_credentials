@@ -135,18 +135,17 @@ defmodule ReqClientCredentials do
   end
 
   defp validate(request, options) do
-    with :ok <- validate_url(options),
-         {:ok, {encoding, params}} <- validate_params(options),
-         :ok <- validate_audience(request, params) do
-      options = if encoding, do: put_in(options[encoding], params), else: options
+    with {:ok, options, encoding} <- validate_options(options),
+         :ok <- validate_audience(request, options, encoding),
+         :ok <- validate_url(options) do
       {:ok, Req.Request.put_private(request, :client_credentials_options, options)}
     else
       _ -> :error
     end
   end
 
-  defp validate_audience(request, params) do
-    case get_in(params, [:audience]) do
+  defp validate_audience(request, options, encoding) do
+    case get_in(options, [encoding, :audience]) do
       nil ->
         :ok
 
@@ -156,7 +155,7 @@ defmodule ReqClientCredentials do
     end
   end
 
-  defp validate_params(options) do
+  defp validate_options(options) do
     {encoding, params} =
       cond do
         Keyword.has_key?(options, :form) -> {:form, options[:form]}
@@ -164,14 +163,14 @@ defmodule ReqClientCredentials do
         true -> {nil, []}
       end
 
-    {:ok, {encoding, update_in(params, [:grant_type], &(&1 || "client_credentials"))}}
+    params = update_in(params, [:grant_type], &(&1 || "client_credentials"))
+    options = if encoding, do: put_in(options[encoding], params), else: options
+
+    {:ok, options, encoding}
   end
 
   defp validate_url(options) do
-    case get_in(options, [:url]) do
-      url when is_binary(url) -> :ok
-      _ -> :error
-    end
+    if get_in(options, [:url]) |> is_binary(), do: :ok, else: :error
   end
 
   @doc false
