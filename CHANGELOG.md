@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.2.5 (2026-06-16)
+
+  * Bump req requirement
+
 ## v0.2.4 (2026-06-11)
 
   * Allows other grant type to be specified by the caller, grant type of

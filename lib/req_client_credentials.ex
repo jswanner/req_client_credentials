@@ -165,7 +165,6 @@ defmodule ReqClientCredentials do
 
     params = update_in(params, [:grant_type], &(&1 || "client_credentials"))
     options = if encoding, do: put_in(options[encoding], params), else: options
-
     {:ok, options, encoding}
   end
 

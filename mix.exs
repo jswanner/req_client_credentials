@@ -2,7 +2,7 @@ defmodule ReqClientCredentials.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/jswanner/req_client_credentials"
-  @version "0.2.4"
+  @version "0.2.5"
 
   def application do
     [
@@ -18,7 +18,7 @@ defmodule ReqClientCredentials.MixProject do
     [
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false, warn_if_outdated: true},
       {:plug, "~> 1.18", only: :test},
-      {:req, "~> 0.5.0"}
+      {:req, "~> 0.5.0 or ~> 0.6.0"}
     ]
   end
 
