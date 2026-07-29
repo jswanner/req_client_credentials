@@ -108,7 +108,7 @@ defmodule ReqClientCredentials do
 
   defp request_token(request) do
     auth_req =
-      Req.Request.new()
+      Req.Request.new(adapter: request.adapter)
       |> Req.Request.append_request_steps(
         Keyword.drop(request.request_steps, [:client_credentials])
       )
@@ -135,7 +135,8 @@ defmodule ReqClientCredentials do
   end
 
   defp validate(request, options) do
-    with {:ok, options, encoding} <- validate_options(options),
+    with false <- Req.Request.get_private(request, :client_credentials_refreshed?, false),
+         {:ok, options, encoding} <- validate_options(options),
          :ok <- validate_audience(request, options, encoding),
          :ok <- validate_url(options) do
       {:ok, Req.Request.put_private(request, :client_credentials_options, options)}

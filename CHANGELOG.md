@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.3.0 (2026-07-29)
+
+  * Support Req >= v0.7 (drop support for < v0.7)
+
 ## v0.2.5 (2026-06-16)
 
   * Bump req requirement
