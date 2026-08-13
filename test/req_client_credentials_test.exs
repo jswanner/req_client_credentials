@@ -92,6 +92,24 @@ defmodule ReqClientCredentialsTest do
       assert_receive {:token_request, _}
       refute_received {:test_request, _}
     end
+
+    test "preserves private data", context do
+      ref = make_ref()
+
+      assert {:ok, _resp} =
+               context.req
+               |> Req.Request.put_private(:test_data, ref)
+               |> Req.Request.append_response_steps(
+                 test_data: fn {req, resp} ->
+                   send(self(), {req.url.host, req.private})
+                   {req, resp}
+                 end
+               )
+               |> Req.get()
+
+      assert_received {"token.host", %{test_data: ^ref}}
+      assert_received {"test.host", %{test_data: ^ref}}
+    end
   end
 
   describe "without client_credentials url option" do

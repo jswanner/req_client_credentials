@@ -122,6 +122,7 @@ defmodule ReqClientCredentials do
         |> Map.drop([:body, :client_credentials, :form, :json])
         |> Map.to_list()
       )
+      |> Map.put(:private, request.private)
 
     options = Req.Request.get_private(request, :client_credentials_options)
 
