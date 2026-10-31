@@ -2,7 +2,7 @@ defmodule ReqClientCredentials.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/jswanner/req_client_credentials"
-  @version "0.3.1"
+  @version "0.4.0"
 
   def application do
     [
@@ -18,7 +18,7 @@ defmodule ReqClientCredentials.MixProject do
     [
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false, warn_if_outdated: true},
       {:plug, "~> 1.18", only: :test},
-      {:req, "~> 0.7.0"}
+      {:req, "~> 0.7.0 or ~> 0.8.0-rc.0", req_opts()}
     ]
   end
 
@@ -44,5 +44,18 @@ defmodule ReqClientCredentials.MixProject do
       start_permanent: Mix.env() == :prod,
       version: @version
     ]
+  end
+
+  defp req_opts do
+    cond do
+      path = System.get_env("REQ_PATH") ->
+        [path: path]
+
+      ref = System.get_env("REQ_REF") ->
+        [github: "wojtekmach/req", ref: ref]
+
+      true ->
+        []
+    end
   end
 end

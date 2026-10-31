@@ -87,10 +87,11 @@ defmodule ReqClientCredentialsTest do
     end
 
     @tag token_response_status: :unauthorized
-    test "skips original request if token request fails", context do
+    test "sends original request without auth header if token request fails", context do
       assert {:ok, _resp} = Req.get(context.req)
       assert_receive {:token_request, _}
-      refute_received {:test_request, _}
+      assert_received {:test_request, conn}
+      assert [] = Conn.get_req_header(conn, "authorization")
     end
 
     test "preserves private data", context do

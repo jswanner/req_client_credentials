@@ -53,8 +53,7 @@ defmodule ReqClientCredentials do
       |> Req.Request.put_header("authorization", "Bearer " <> token)
       |> Req.Request.put_private(:client_credentials_refreshed?, false)
     else
-      {_request, _response_or_exception} = result -> result
-      _other -> request
+      :error -> request
     end
   end
 
@@ -83,7 +82,7 @@ defmodule ReqClientCredentials do
           %{request | halted: false}
           |> Req.Request.put_header("authorization", "Bearer " <> token)
           |> Req.Request.put_private(:client_credentials_refreshed?, true)
-          |> Req.Request.run_request()
+          |> Req.run()
 
         _ ->
           {request, response}
@@ -130,7 +129,6 @@ defmodule ReqClientCredentials do
       write_cache(request, token)
       {:ok, token}
     else
-      {:ok, %Req.Response{} = response} -> {request, response}
       _ -> :error
     end
   end

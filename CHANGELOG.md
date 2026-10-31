@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.4.0 (2026-10-30)
+
+  * Support Req v0.8 (retaining support for v0.7)
+
 ## v0.3.1 (2026-08-13)
 
   * Preserve private data in token request (#4).
